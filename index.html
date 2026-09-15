@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="2DU">
+  <title>2DU</title>
+  <link rel="manifest" href="./manifest.json">
+  <style>
+    :root {
+      --white: #ffffff;
+      --black: #111111;
+      --green: #35b56a;
+      --gray: #777777;
+      --line: #e8e8e8;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100%;
+      background: var(--white);
+      color: var(--black);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    button, input {
+      font: inherit;
+    }
+
+    button {
+      touch-action: manipulation;
+    }
+
+    .app {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      background: var(--white);
+    }
+
+    .header {
+      padding: calc(24px + env(safe-area-inset-top)) 20px 18px;
+      text-align: center;
+      border-bottom: 1px solid #f1f1f1;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 38px;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+
+    .main {
+      width: 100%;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 24px 16px calc(110px + env(safe-area-inset-bottom));
+      flex: 1;
+    }
+
+    .empty {
+      display: none;
+      padding: 70px 20px;
+      text-align: center;
+      color: #999999;
+      font-size: 17px;
+    }
+
+    .empty.show {
+      display: block;
+    }
+
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .todo {
+      width: 100%;
+      min-height: 62px;
+      max-height: 62px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 12px 10px 18px;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      overflow: hidden;
+      opacity: 1;
+      transform: translateY(0) rotate(0deg);
+      transition:
+        transform 0.55s ease,
+        opacity 0.55s ease,
+        max-height 0.35s ease,
+        min-height 0.35s ease,
+        padding 0.35s ease,
+        border-width 0.35s ease;
+    }
+
+    .todo-text {
+      min-width: 0;
+      flex: 1;
+      font-size: 18px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .check-button {
+      flex: 0 0 auto;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--white);
+      border: 2px solid var(--black);
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .check-button:active {
+      transform: scale(0.92);
+    }
+
+    .checkmark {
+      width: 16px;
+      height: 9px;
+      border-left: 3px solid var(--white);
+      border-bottom: 3px solid var(--white);
+      transform: translateY(-2px) rotate(-45deg);
+      opacity: 0;
+    }
+
+    .todo.checked .check-button {
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .todo.checked .checkmark {
+      opacity: 1;
+    }
+
+    .todo.falling {
+      pointer-events: none;
+      transform: translateY(220px) rotate(6deg);
+      opacity: 0;
+    }
+
+    .todo.collapsing {
+      min-height: 0;
+      max-height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      border-width: 0;
+    }
+
+    .add-button {
+      position: fixed;
+      right: 24px;
+      bottom: calc(26px + env(safe-area-inset-bottom));
+      z-index: 20;
+      width: 64px;
+      height: 64px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: var(--green);
+      color: var(--white);
+      font-size: 42px;
+      font-weight: 300;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 7px 18px rgba(0, 0, 0, 0.20);
+      cursor: pointer;
+    }
+
+    .add-button:active {
+      transform: scale(0.94);
+    }
+
+    .plus {
+      position: relative;
+      top: -2px;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.34);
+    }
+
+    .overlay.show {
+      display: flex;
+    }
+
+    .sheet {
+      width: 100%;
+      max-width: 760px;
+      padding: 24px 20px calc(22px + env(safe-area-inset-bottom));
+      background: var(--white);
+      border-radius: 22px 22px 0 0;
+      box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.12);
+    }
+
+    .sheet-title {
+      margin: 0 0 16px;
+      font-size: 23px;
+      font-weight: 700;
+    }
+
+    .todo-input {
+      width: 100%;
+      height: 54px;
+      padding: 0 15px;
+      border: 2px solid #dddddd;
+      border-radius: 11px;
+      outline: none;
+      background: var(--white);
+      color: var(--black);
+      font-size: 18px;
+    }
+
+    .todo-input:focus {
+      border-color: var(--green);
+    }
+
+    .counter {
+      min-height: 22px;
+      padding-top: 6px;
+      text-align: right;
+      color: var(--gray);
+      font-size: 12px;
+    }
+
+    .sheet-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .sheet-button {
+      flex: 1;
+      min-height: 50px;
+      border: 0;
+      border-radius: 11px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .cancel-button {
+      background: #eeeeee;
+      color: var(--black);
+    }
+
+    .save-button {
+      background: var(--green);
+      color: var(--white);
+    }
+
+    .save-button:disabled {
+      opacity: 0.45;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1 class="title">2DU</h1>
+    </header>
+
+    <main class="main">
+      <div id="emptyState" class="empty">Nothing to do.</div>
+      <div id="todoList" class="list"></div>
+    </main>
+
+    <button id="addButton" class="add-button" type="button" aria-label="Add a to-do">
+      <span class="plus">+</span>
+    </button>
+  </div>
+
+  <div id="overlay" class="overlay">
+    <div class="sheet">
+      <h2 class="sheet-title">Add to 2DU</h2>
+      <input
+        id="todoInput"
+        class="todo-input"
+        type="text"
+        maxlength="60"
+        autocomplete="off"
+        placeholder="What do you need to do?"
+      >
+      <div id="counter" class="counter">0 / 60</div>
+      <div class="sheet-buttons">
+        <button id="cancelButton" class="sheet-button cancel-button" type="button">Cancel</button>
+        <button id="saveButton" class="sheet-button save-button" type="button" disabled>Add</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "2du-items-v1";
+    const todoList = document.getElementById("todoList");
+    const emptyState = document.getElementById("emptyState");
+    const addButton = document.getElementById("addButton");
+    const overlay = document.getElementById("overlay");
+    const todoInput = document.getElementById("todoInput");
+    const counter = document.getElementById("counter");
+    const cancelButton = document.getElementById("cancelButton");
+    const saveButton = document.getElementById("saveButton");
+
+    let todos = loadTodos();
+
+    function loadTodos() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return [];
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function saveTodos() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+    }
+
+    function createId() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2);
+    }
+
+    function renderTodos() {
+      todoList.innerHTML = "";
+
+      if (todos.length === 0) {
+        emptyState.classList.add("show");
+        return;
+      }
+
+      emptyState.classList.remove("show");
+
+      todos.forEach(function(todo) {
+        const row = document.createElement("div");
+        row.className = "todo";
+        row.dataset.id = todo.id;
+
+        const text = document.createElement("div");
+        text.className = "todo-text";
+        text.textContent = todo.text;
+        text.title = todo.text;
+
+        const checkButton = document.createElement("button");
+        checkButton.className = "check-button";
+        checkButton.type = "button";
+        checkButton.setAttribute("aria-label", "Mark complete");
+
+        const checkmark = document.createElement("span");
+        checkmark.className = "checkmark";
+        checkButton.appendChild(checkmark);
+
+        checkButton.addEventListener("click", function() {
+          completeTodo(todo.id, row);
+        });
+
+        row.appendChild(text);
+        row.appendChild(checkButton);
+        todoList.appendChild(row);
+      });
+    }
+
+    function openAddSheet() {
+      todoInput.value = "";
+      updateInputState();
+      overlay.classList.add("show");
+
+      window.setTimeout(function() {
+        todoInput.focus();
+      }, 120);
+    }
+
+    function closeAddSheet() {
+      overlay.classList.remove("show");
+      todoInput.blur();
+    }
+
+    function updateInputState() {
+      counter.textContent = todoInput.value.length + " / 60";
+      saveButton.disabled = todoInput.value.trim().length === 0;
+    }
+
+    function addTodo() {
+      const text = todoInput.value.trim();
+      if (!text) return;
+
+      todos.push({
+        id: createId(),
+        text: text
+      });
+
+      saveTodos();
+      renderTodos();
+      closeAddSheet();
+    }
+
+    function completeTodo(id, row) {
+      if (row.classList.contains("falling")) return;
+
+      row.classList.add("checked");
+
+      window.setTimeout(function() {
+        row.classList.add("falling");
+      }, 130);
+
+      window.setTimeout(function() {
+        row.classList.add("collapsing");
+      }, 560);
+
+      window.setTimeout(function() {
+        todos = todos.filter(function(todo) {
+          return todo.id !== id;
+        });
+
+        saveTodos();
+        renderTodos();
+      }, 900);
+    }
+
+    addButton.addEventListener("click", openAddSheet);
+    cancelButton.addEventListener("click", closeAddSheet);
+    saveButton.addEventListener("click", addTodo);
+    todoInput.addEventListener("input", updateInputState);
+
+    todoInput.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (!saveButton.disabled) addTodo();
+      }
+    });
+
+    overlay.addEventListener("click", function(event) {
+      if (event.target === overlay) closeAddSheet();
+    });
+
+    renderTodos();
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function() {
+        navigator.serviceWorker.register("./sw.js").catch(function() {});
+      });
+    }
+  </script>
+</body>
+</html>
