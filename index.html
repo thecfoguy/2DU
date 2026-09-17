@@ -108,7 +108,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 10px 12px;
+      padding: 10px 10px 10px 18px;
       background: var(--white);
       border: 1px solid var(--line);
       border-radius: 14px;
@@ -128,38 +128,12 @@
 
     .todo.dragging {
       position: relative;
-      z-index: 50;
+      z-index: 100;
       transform: scale(1.025);
       box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
       transition:
         transform 0.12s ease,
         box-shadow 0.12s ease;
-    }
-
-    .drag-handle {
-      flex: 0 0 auto;
-      width: 30px;
-      height: 38px;
-      padding: 0;
-      border: 0;
-      background: transparent;
-      color: #999999;
-      font-size: 25px;
-      line-height: 1;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: grab;
-      touch-action: none;
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-touch-callout: none;
-    }
-
-    .drag-handle:active {
-      cursor: grabbing;
-      color: var(--black);
     }
 
     .todo-text {
@@ -206,6 +180,32 @@
 
     .todo.checked .checkmark {
       opacity: 1;
+    }
+
+    .drag-handle {
+      flex: 0 0 auto;
+      width: 36px;
+      height: 40px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #999999;
+      font-size: 26px;
+      line-height: 1;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      cursor: grab;
+    }
+
+    .drag-handle.active {
+      color: var(--black);
+      cursor: grabbing;
     }
 
     .todo.falling {
@@ -349,7 +349,12 @@
       <div id="todoList" class="list"></div>
     </main>
 
-    <button id="addButton" class="add-button" type="button" aria-label="Add a to-do">
+    <button
+      id="addButton"
+      class="add-button"
+      type="button"
+      aria-label="Add a to-do"
+    >
       <span class="plus">+</span>
     </button>
   </div>
@@ -370,11 +375,20 @@
       <div id="counter" class="counter">0 / 60</div>
 
       <div class="sheet-buttons">
-        <button id="cancelButton" class="sheet-button cancel-button" type="button">
+        <button
+          id="cancelButton"
+          class="sheet-button cancel-button"
+          type="button"
+        >
           Cancel
         </button>
 
-        <button id="saveButton" class="sheet-button save-button" type="button" disabled>
+        <button
+          id="saveButton"
+          class="sheet-button save-button"
+          type="button"
+          disabled
+        >
           Add
         </button>
       </div>
@@ -396,13 +410,15 @@
     let todos = loadTodos();
 
     let draggedRow = null;
-    let activePointerId = null;
+    let draggedHandle = null;
 
     function loadTodos() {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
 
-        if (!saved) return [];
+        if (!saved) {
+          return [];
+        }
 
         const parsed = JSON.parse(saved);
 
@@ -413,11 +429,17 @@
     }
 
     function saveTodos() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(todos)
+      );
     }
 
     function createId() {
-      return Date.now().toString(36) + Math.random().toString(36).slice(2);
+      return (
+        Date.now().toString(36) +
+        Math.random().toString(36).slice(2)
+      );
     }
 
     function renderTodos() {
@@ -432,188 +454,333 @@
 
       todos.forEach(function(todo) {
         const row = document.createElement("div");
+
         row.className = "todo";
         row.dataset.id = todo.id;
 
-        const dragHandle = document.createElement("button");
-        dragHandle.className = "drag-handle";
-        dragHandle.type = "button";
-        dragHandle.textContent = "☰";
-        dragHandle.setAttribute("aria-label", "Move item");
-
         const text = document.createElement("div");
+
         text.className = "todo-text";
         text.textContent = todo.text;
         text.title = todo.text;
 
-        const checkButton = document.createElement("button");
-        checkButton.className = "check-button";
+        const checkButton =
+          document.createElement("button");
+
+        checkButton.className =
+          "check-button";
+
         checkButton.type = "button";
-        checkButton.setAttribute("aria-label", "Mark complete");
 
-        const checkmark = document.createElement("span");
-        checkmark.className = "checkmark";
+        checkButton.setAttribute(
+          "aria-label",
+          "Mark complete"
+        );
 
-        checkButton.appendChild(checkmark);
+        const checkmark =
+          document.createElement("span");
 
-        checkButton.addEventListener("click", function() {
-          completeTodo(todo.id, row);
-        });
+        checkmark.className =
+          "checkmark";
 
-        dragHandle.addEventListener("pointerdown", function(event) {
-          startDrag(event, row, dragHandle);
-        });
+        checkButton.appendChild(
+          checkmark
+        );
 
-        row.appendChild(dragHandle);
+        const dragHandle =
+          document.createElement("button");
+
+        dragHandle.className =
+          "drag-handle";
+
+        dragHandle.type =
+          "button";
+
+        dragHandle.textContent =
+          "☰";
+
+        dragHandle.setAttribute(
+          "aria-label",
+          "Move item"
+        );
+
+        checkButton.addEventListener(
+          "click",
+          function() {
+            completeTodo(
+              todo.id,
+              row
+            );
+          }
+        );
+
+        dragHandle.addEventListener(
+          "touchstart",
+          function(event) {
+            startTouchDrag(
+              event,
+              row,
+              dragHandle
+            );
+          },
+          {
+            passive: false
+          }
+        );
+
+        dragHandle.addEventListener(
+          "touchmove",
+          moveTouchDrag,
+          {
+            passive: false
+          }
+        );
+
+        dragHandle.addEventListener(
+          "touchend",
+          endTouchDrag,
+          {
+            passive: false
+          }
+        );
+
+        dragHandle.addEventListener(
+          "touchcancel",
+          endTouchDrag,
+          {
+            passive: false
+          }
+        );
+
         row.appendChild(text);
         row.appendChild(checkButton);
+        row.appendChild(dragHandle);
 
         todoList.appendChild(row);
       });
     }
 
-    function startDrag(event, row, handle) {
-      if (draggedRow) return;
-
-      event.preventDefault();
-
-      draggedRow = row;
-      activePointerId = event.pointerId;
-
-      draggedRow.classList.add("dragging");
-      document.body.classList.add("dragging-active");
-
-      try {
-        handle.setPointerCapture(activePointerId);
-      } catch (error) {
-      }
-
-      if (navigator.vibrate) {
-        navigator.vibrate(20);
-      }
-
-      handle.addEventListener("pointermove", dragMove);
-      handle.addEventListener("pointerup", dragEnd);
-      handle.addEventListener("pointercancel", dragEnd);
-    }
-
-    function dragMove(event) {
-      if (!draggedRow) return;
-
-      if (event.pointerId !== activePointerId) {
+    function startTouchDrag(
+      event,
+      row,
+      handle
+    ) {
+      if (
+        event.touches.length !== 1
+      ) {
         return;
       }
 
       event.preventDefault();
 
-      moveRowToPosition(event.clientY);
+      draggedRow = row;
+      draggedHandle = handle;
+
+      draggedRow.classList.add(
+        "dragging"
+      );
+
+      draggedHandle.classList.add(
+        "active"
+      );
+
+      document.body.classList.add(
+        "dragging-active"
+      );
+
+      if (
+        typeof navigator.vibrate ===
+        "function"
+      ) {
+        navigator.vibrate(20);
+      }
     }
 
-    function moveRowToPosition(pointerY) {
-      if (!draggedRow) return;
+    function moveTouchDrag(event) {
+      if (
+        !draggedRow ||
+        event.touches.length !== 1
+      ) {
+        return;
+      }
 
-      const otherRows = Array.from(
-        todoList.querySelectorAll(".todo:not(.dragging)")
+      event.preventDefault();
+
+      const touch =
+        event.touches[0];
+
+      moveRowToFinger(
+        touch.clientY
       );
+    }
+
+    function moveRowToFinger(fingerY) {
+      if (!draggedRow) {
+        return;
+      }
+
+      const rows =
+        Array.from(
+          todoList.querySelectorAll(
+            ".todo:not(.dragging)"
+          )
+        );
 
       let placed = false;
 
-      for (let i = 0; i < otherRows.length; i += 1) {
-        const row = otherRows[i];
-        const rect = row.getBoundingClientRect();
-        const middle = rect.top + rect.height / 2;
+      for (
+        let i = 0;
+        i < rows.length;
+        i += 1
+      ) {
+        const row = rows[i];
 
-        if (pointerY < middle) {
-          todoList.insertBefore(draggedRow, row);
+        const rect =
+          row.getBoundingClientRect();
+
+        const midpoint =
+          rect.top +
+          rect.height / 2;
+
+        if (
+          fingerY < midpoint
+        ) {
+          todoList.insertBefore(
+            draggedRow,
+            row
+          );
+
           placed = true;
+
           break;
         }
       }
 
       if (!placed) {
-        todoList.appendChild(draggedRow);
+        todoList.appendChild(
+          draggedRow
+        );
       }
     }
 
-    function dragEnd(event) {
-      if (!draggedRow) return;
-
-      if (event.pointerId !== activePointerId) {
+    function endTouchDrag(event) {
+      if (!draggedRow) {
         return;
       }
 
-      const handle = event.currentTarget;
+      event.preventDefault();
 
-      try {
-        if (handle.hasPointerCapture(activePointerId)) {
-          handle.releasePointerCapture(activePointerId);
-        }
-      } catch (error) {
+      draggedRow.classList.remove(
+        "dragging"
+      );
+
+      if (draggedHandle) {
+        draggedHandle.classList.remove(
+          "active"
+        );
       }
 
-      handle.removeEventListener("pointermove", dragMove);
-      handle.removeEventListener("pointerup", dragEnd);
-      handle.removeEventListener("pointercancel", dragEnd);
-
-      draggedRow.classList.remove("dragging");
-      document.body.classList.remove("dragging-active");
+      document.body.classList.remove(
+        "dragging-active"
+      );
 
       saveDisplayedOrder();
 
       draggedRow = null;
-      activePointerId = null;
+      draggedHandle = null;
     }
 
     function saveDisplayedOrder() {
-      const rows = Array.from(
-        todoList.querySelectorAll(".todo")
+      const rows =
+        Array.from(
+          todoList.querySelectorAll(
+            ".todo"
+          )
+        );
+
+      const orderedIds =
+        rows.map(
+          function(row) {
+            return row.dataset.id;
+          }
+        );
+
+      const lookup =
+        new Map();
+
+      todos.forEach(
+        function(todo) {
+          lookup.set(
+            todo.id,
+            todo
+          );
+        }
       );
 
-      const orderedIds = rows.map(function(row) {
-        return row.dataset.id;
-      });
+      const reordered =
+        [];
 
-      const lookup = new Map();
+      orderedIds.forEach(
+        function(id) {
+          const todo =
+            lookup.get(id);
 
-      todos.forEach(function(todo) {
-        lookup.set(todo.id, todo);
-      });
+          if (todo) {
+            reordered.push(
+              todo
+            );
+          }
+        }
+      );
 
-      todos = orderedIds
-        .map(function(id) {
-          return lookup.get(id);
-        })
-        .filter(function(todo) {
-          return Boolean(todo);
-        });
+      todos = reordered;
 
       saveTodos();
     }
 
     function openAddSheet() {
       todoInput.value = "";
-      updateInputState();
-      overlay.classList.add("show");
 
-      window.setTimeout(function() {
-        todoInput.focus();
-      }, 120);
+      updateInputState();
+
+      overlay.classList.add(
+        "show"
+      );
+
+      window.setTimeout(
+        function() {
+          todoInput.focus();
+        },
+        120
+      );
     }
 
     function closeAddSheet() {
-      overlay.classList.remove("show");
+      overlay.classList.remove(
+        "show"
+      );
+
       todoInput.blur();
     }
 
     function updateInputState() {
-      counter.textContent = todoInput.value.length + " / 60";
-      saveButton.disabled = todoInput.value.trim().length === 0;
+      counter.textContent =
+        todoInput.value.length +
+        " / 60";
+
+      saveButton.disabled =
+        todoInput.value
+          .trim()
+          .length === 0;
     }
 
     function addTodo() {
-      const text = todoInput.value.trim();
+      const text =
+        todoInput.value.trim();
 
-      if (!text) return;
+      if (!text) {
+        return;
+      }
 
       todos.push({
         id: createId(),
@@ -626,57 +793,118 @@
     }
 
     function completeTodo(id, row) {
-      if (row.classList.contains("falling")) return;
+      if (
+        row.classList.contains(
+          "falling"
+        )
+      ) {
+        return;
+      }
 
-      row.classList.add("checked");
+      row.classList.add(
+        "checked"
+      );
 
-      window.setTimeout(function() {
-        row.classList.add("falling");
-      }, 130);
+      window.setTimeout(
+        function() {
+          row.classList.add(
+            "falling"
+          );
+        },
+        130
+      );
 
-      window.setTimeout(function() {
-        row.classList.add("collapsing");
-      }, 560);
+      window.setTimeout(
+        function() {
+          row.classList.add(
+            "collapsing"
+          );
+        },
+        560
+      );
 
-      window.setTimeout(function() {
-        todos = todos.filter(function(todo) {
-          return todo.id !== id;
-        });
+      window.setTimeout(
+        function() {
+          todos =
+            todos.filter(
+              function(todo) {
+                return (
+                  todo.id !== id
+                );
+              }
+            );
 
-        saveTodos();
-        renderTodos();
-      }, 900);
+          saveTodos();
+          renderTodos();
+        },
+        900
+      );
     }
 
-    addButton.addEventListener("click", openAddSheet);
-    cancelButton.addEventListener("click", closeAddSheet);
-    saveButton.addEventListener("click", addTodo);
-    todoInput.addEventListener("input", updateInputState);
+    addButton.addEventListener(
+      "click",
+      openAddSheet
+    );
 
-    todoInput.addEventListener("keydown", function(event) {
-      if (event.key === "Enter") {
-        event.preventDefault();
+    cancelButton.addEventListener(
+      "click",
+      closeAddSheet
+    );
 
-        if (!saveButton.disabled) {
-          addTodo();
+    saveButton.addEventListener(
+      "click",
+      addTodo
+    );
+
+    todoInput.addEventListener(
+      "input",
+      updateInputState
+    );
+
+    todoInput.addEventListener(
+      "keydown",
+      function(event) {
+        if (
+          event.key === "Enter"
+        ) {
+          event.preventDefault();
+
+          if (
+            !saveButton.disabled
+          ) {
+            addTodo();
+          }
         }
       }
-    });
+    );
 
-    overlay.addEventListener("click", function(event) {
-      if (event.target === overlay) {
-        closeAddSheet();
+    overlay.addEventListener(
+      "click",
+      function(event) {
+        if (
+          event.target === overlay
+        ) {
+          closeAddSheet();
+        }
       }
-    });
+    );
 
     renderTodos();
 
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", function() {
-        navigator.serviceWorker
-          .register("./sw.js")
-          .catch(function() {});
-      });
+    if (
+      "serviceWorker" in navigator
+    ) {
+      window.addEventListener(
+        "load",
+        function() {
+          navigator
+            .serviceWorker
+            .register("./sw.js")
+            .catch(
+              function() {}
+            );
+        }
+      );
     }
   </script>
 </body>
