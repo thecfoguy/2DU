@@ -1,4 +1,4 @@
-const CACHE_NAME = "2du-cache-v1";
+const CACHE_NAME = "2du-cache-v2";
 
 const APP_FILES = [
   "./",
@@ -25,14 +25,12 @@ self.addEventListener("activate", (event) => {
           if (cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
-
-          return Promise.resolve();
         })
       );
+    }).then(() => {
+      return self.clients.claim();
     })
   );
-
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
@@ -41,12 +39,18 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
 
-      return fetch(event.request);
-    })
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, copy);
+        });
+
+        return response;
+      })
+      .catch(() => {
+        return caches.match(event.request);
+      })
   );
 });
