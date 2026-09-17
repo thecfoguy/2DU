@@ -40,7 +40,7 @@
       overflow-x: hidden;
     }
 
-    body.reordering {
+    body.drag-active {
       overflow: hidden;
       overscroll-behavior: none;
     }
@@ -123,20 +123,18 @@
         min-height 0.35s ease,
         padding 0.35s ease,
         border-width 0.35s ease,
-        box-shadow 0.18s ease;
-      user-select: none;
-      -webkit-user-select: none;
+        box-shadow 0.15s ease;
     }
 
     .todo.dragging {
       position: relative;
-      z-index: 50;
-      transform: scale(1.025);
-      box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
-      border-color: #cccccc;
+      z-index: 1000;
+      transform: scale(1.035);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+      border-color: #cfcfcf;
       transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
+        transform 0.12s ease,
+        box-shadow 0.12s ease;
     }
 
     .todo-text {
@@ -147,11 +145,9 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      touch-action: pan-y;
-    }
-
-    .todo.dragging .todo-text {
-      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
 
     .check-button {
@@ -331,7 +327,12 @@
       <div id="todoList" class="list"></div>
     </main>
 
-    <button id="addButton" class="add-button" type="button" aria-label="Add a to-do">
+    <button
+      id="addButton"
+      class="add-button"
+      type="button"
+      aria-label="Add a to-do"
+    >
       <span class="plus">+</span>
     </button>
   </div>
@@ -352,11 +353,20 @@
       <div id="counter" class="counter">0 / 60</div>
 
       <div class="sheet-buttons">
-        <button id="cancelButton" class="sheet-button cancel-button" type="button">
+        <button
+          id="cancelButton"
+          class="sheet-button cancel-button"
+          type="button"
+        >
           Cancel
         </button>
 
-        <button id="saveButton" class="sheet-button save-button" type="button" disabled>
+        <button
+          id="saveButton"
+          class="sheet-button save-button"
+          type="button"
+          disabled
+        >
           Add
         </button>
       </div>
@@ -377,21 +387,22 @@
 
     let todos = loadTodos();
 
-    let heldRow = null;
-    let activePointerId = null;
+    let dragRow = null;
     let holdTimer = null;
-    let dragging = false;
-    let startX = 0;
-    let startY = 0;
+    let dragActive = false;
+    let touchStartX = 0;
+    let touchStartY = 0;
 
-    const HOLD_TIME = 450;
-    const CANCEL_DISTANCE = 12;
+    const HOLD_DELAY = 350;
+    const CANCEL_DISTANCE = 14;
 
     function loadTodos() {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
 
-        if (!saved) return [];
+        if (!saved) {
+          return [];
+        }
 
         const parsed = JSON.parse(saved);
 
@@ -402,11 +413,17 @@
     }
 
     function saveTodos() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(todos)
+      );
     }
 
     function createId() {
-      return Date.now().toString(36) + Math.random().toString(36).slice(2);
+      return (
+        Date.now().toString(36) +
+        Math.random().toString(36).slice(2)
+      );
     }
 
     function renderTodos() {
@@ -431,26 +448,66 @@
         text.textContent = todo.text;
         text.title = todo.text;
 
-        const checkButton = document.createElement("button");
+        const checkButton =
+          document.createElement("button");
 
         checkButton.className = "check-button";
         checkButton.type = "button";
-        checkButton.setAttribute("aria-label", "Mark complete");
 
-        const checkmark = document.createElement("span");
+        checkButton.setAttribute(
+          "aria-label",
+          "Mark complete"
+        );
+
+        const checkmark =
+          document.createElement("span");
 
         checkmark.className = "checkmark";
 
         checkButton.appendChild(checkmark);
 
-        checkButton.addEventListener("click", function(event) {
-          event.stopPropagation();
-          completeTodo(todo.id, row);
-        });
+        checkButton.addEventListener(
+          "click",
+          function(event) {
+            event.stopPropagation();
 
-        text.addEventListener("pointerdown", function(event) {
-          startHold(event, row);
-        });
+            completeTodo(
+              todo.id,
+              row
+            );
+          }
+        );
+
+        text.addEventListener(
+          "touchstart",
+          function(event) {
+            handleTouchStart(
+              event,
+              row
+            );
+          },
+          {
+            passive: true
+          }
+        );
+
+        text.addEventListener(
+          "touchmove",
+          handleTouchMove,
+          {
+            passive: false
+          }
+        );
+
+        text.addEventListener(
+          "touchend",
+          handleTouchEnd
+        );
+
+        text.addEventListener(
+          "touchcancel",
+          handleTouchEnd
+        );
 
         row.appendChild(text);
         row.appendChild(checkButton);
@@ -459,57 +516,86 @@
       });
     }
 
-    function startHold(event, row) {
-      if (event.pointerType === "mouse" && event.button !== 0) {
+    function handleTouchStart(event, row) {
+      if (
+        event.touches.length !== 1
+      ) {
         return;
       }
 
-      cancelCurrentHold();
+      clearDragState();
 
-      heldRow = row;
-      activePointerId = event.pointerId;
-      startX = event.clientX;
-      startY = event.clientY;
-      dragging = false;
+      const touch = event.touches[0];
 
-      document.addEventListener("pointermove", handlePointerMove, {
-        passive: false
-      });
+      dragRow = row;
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      dragActive = false;
 
-      document.addEventListener("pointerup", handlePointerEnd);
-      document.addEventListener("pointercancel", handlePointerEnd);
-
-      holdTimer = window.setTimeout(function() {
-        beginDragging();
-      }, HOLD_TIME);
+      holdTimer =
+        window.setTimeout(
+          function() {
+            activateDrag();
+          },
+          HOLD_DELAY
+        );
     }
 
-    function beginDragging() {
+    function activateDrag() {
       holdTimer = null;
 
-      if (!heldRow) return;
-
-      dragging = true;
-
-      heldRow.classList.add("dragging");
-      document.body.classList.add("reordering");
-
-      if (navigator.vibrate) {
-        navigator.vibrate(25);
-      }
-    }
-
-    function handlePointerMove(event) {
-      if (!heldRow || event.pointerId !== activePointerId) {
+      if (!dragRow) {
         return;
       }
 
-      const movedX = Math.abs(event.clientX - startX);
-      const movedY = Math.abs(event.clientY - startY);
+      dragActive = true;
 
-      if (!dragging) {
-        if (movedX > CANCEL_DISTANCE || movedY > CANCEL_DISTANCE) {
-          clearHoldTimer();
+      dragRow.classList.add(
+        "dragging"
+      );
+
+      document.body.classList.add(
+        "drag-active"
+      );
+
+      if (
+        typeof navigator.vibrate ===
+        "function"
+      ) {
+        navigator.vibrate(30);
+      }
+    }
+
+    function handleTouchMove(event) {
+      if (
+        !dragRow ||
+        event.touches.length !== 1
+      ) {
+        return;
+      }
+
+      const touch = event.touches[0];
+
+      const distanceX =
+        Math.abs(
+          touch.clientX -
+          touchStartX
+        );
+
+      const distanceY =
+        Math.abs(
+          touch.clientY -
+          touchStartY
+        );
+
+      if (!dragActive) {
+        if (
+          distanceX >
+            CANCEL_DISTANCE ||
+          distanceY >
+            CANCEL_DISTANCE
+        ) {
+          cancelHoldTimer();
         }
 
         return;
@@ -517,132 +603,199 @@
 
       event.preventDefault();
 
-      moveRowToFinger(event.clientY);
+      reorderRow(
+        touch.clientY
+      );
     }
 
-    function moveRowToFinger(pointerY) {
-      if (!heldRow) return;
+    function reorderRow(fingerY) {
+      if (!dragRow) {
+        return;
+      }
 
-      const otherRows = Array.from(
-        todoList.querySelectorAll(".todo:not(.dragging)")
-      );
+      const rows =
+        Array.from(
+          todoList.querySelectorAll(
+            ".todo:not(.dragging)"
+          )
+        );
 
-      let placed = false;
+      let inserted = false;
 
-      for (let i = 0; i < otherRows.length; i += 1) {
-        const otherRow = otherRows[i];
-        const rect = otherRow.getBoundingClientRect();
-        const middle = rect.top + rect.height / 2;
+      for (
+        let i = 0;
+        i < rows.length;
+        i += 1
+      ) {
+        const row = rows[i];
 
-        if (pointerY < middle) {
-          todoList.insertBefore(heldRow, otherRow);
-          placed = true;
+        const rect =
+          row.getBoundingClientRect();
+
+        const middle =
+          rect.top +
+          rect.height / 2;
+
+        if (
+          fingerY < middle
+        ) {
+          todoList.insertBefore(
+            dragRow,
+            row
+          );
+
+          inserted = true;
+
           break;
         }
       }
 
-      if (!placed) {
-        todoList.appendChild(heldRow);
+      if (!inserted) {
+        todoList.appendChild(
+          dragRow
+        );
       }
     }
 
-    function handlePointerEnd(event) {
-      if (!heldRow || event.pointerId !== activePointerId) {
-        return;
+    function handleTouchEnd() {
+      cancelHoldTimer();
+
+      if (
+        dragActive &&
+        dragRow
+      ) {
+        dragRow.classList.remove(
+          "dragging"
+        );
+
+        document.body.classList.remove(
+          "drag-active"
+        );
+
+        saveDisplayedOrder();
       }
 
-      clearHoldTimer();
-
-      if (dragging) {
-        heldRow.classList.remove("dragging");
-        document.body.classList.remove("reordering");
-        saveCurrentOrder();
-      }
-
-      cleanupDrag();
+      dragRow = null;
+      dragActive = false;
     }
 
-    function clearHoldTimer() {
-      if (holdTimer !== null) {
-        window.clearTimeout(holdTimer);
+    function cancelHoldTimer() {
+      if (
+        holdTimer !== null
+      ) {
+        window.clearTimeout(
+          holdTimer
+        );
+
         holdTimer = null;
       }
     }
 
-    function cancelCurrentHold() {
-      clearHoldTimer();
+    function clearDragState() {
+      cancelHoldTimer();
 
-      if (heldRow) {
-        heldRow.classList.remove("dragging");
+      if (dragRow) {
+        dragRow.classList.remove(
+          "dragging"
+        );
       }
 
-      document.body.classList.remove("reordering");
+      document.body.classList.remove(
+        "drag-active"
+      );
 
-      cleanupDrag();
+      dragRow = null;
+      dragActive = false;
     }
 
-    function cleanupDrag() {
-      document.removeEventListener("pointermove", handlePointerMove);
-      document.removeEventListener("pointerup", handlePointerEnd);
-      document.removeEventListener("pointercancel", handlePointerEnd);
+    function saveDisplayedOrder() {
+      const rows =
+        Array.from(
+          todoList.querySelectorAll(
+            ".todo"
+          )
+        );
 
-      heldRow = null;
-      activePointerId = null;
-      dragging = false;
-    }
+      const ids =
+        rows.map(
+          function(row) {
+            return row.dataset.id;
+          }
+        );
 
-    function saveCurrentOrder() {
-      const rows = Array.from(todoList.querySelectorAll(".todo"));
+      const todoLookup =
+        new Map();
 
-      const orderedIds = rows.map(function(row) {
-        return row.dataset.id;
-      });
-
-      const lookup = new Map();
-
-      todos.forEach(function(todo) {
-        lookup.set(todo.id, todo);
-      });
-
-      const reorderedTodos = [];
-
-      orderedIds.forEach(function(id) {
-        const todo = lookup.get(id);
-
-        if (todo) {
-          reorderedTodos.push(todo);
+      todos.forEach(
+        function(todo) {
+          todoLookup.set(
+            todo.id,
+            todo
+          );
         }
-      });
+      );
 
-      todos = reorderedTodos;
+      const reordered = [];
+
+      ids.forEach(
+        function(id) {
+          const item =
+            todoLookup.get(id);
+
+          if (item) {
+            reordered.push(item);
+          }
+        }
+      );
+
+      todos = reordered;
 
       saveTodos();
     }
 
     function openAddSheet() {
       todoInput.value = "";
-      updateInputState();
-      overlay.classList.add("show");
 
-      window.setTimeout(function() {
-        todoInput.focus();
-      }, 120);
+      updateInputState();
+
+      overlay.classList.add(
+        "show"
+      );
+
+      window.setTimeout(
+        function() {
+          todoInput.focus();
+        },
+        120
+      );
     }
 
     function closeAddSheet() {
-      overlay.classList.remove("show");
+      overlay.classList.remove(
+        "show"
+      );
+
       todoInput.blur();
     }
 
     function updateInputState() {
-      counter.textContent = todoInput.value.length + " / 60";
-      saveButton.disabled = todoInput.value.trim().length === 0;
+      counter.textContent =
+        todoInput.value.length +
+        " / 60";
+
+      saveButton.disabled =
+        todoInput.value
+          .trim()
+          .length === 0;
     }
 
     function addTodo() {
-      const text = todoInput.value.trim();
+      const text =
+        todoInput.value.trim();
 
-      if (!text) return;
+      if (!text) {
+        return;
+      }
 
       todos.push({
         id: createId(),
@@ -655,57 +808,118 @@
     }
 
     function completeTodo(id, row) {
-      if (row.classList.contains("falling")) return;
+      if (
+        row.classList.contains(
+          "falling"
+        )
+      ) {
+        return;
+      }
 
-      row.classList.add("checked");
+      row.classList.add(
+        "checked"
+      );
 
-      window.setTimeout(function() {
-        row.classList.add("falling");
-      }, 130);
+      window.setTimeout(
+        function() {
+          row.classList.add(
+            "falling"
+          );
+        },
+        130
+      );
 
-      window.setTimeout(function() {
-        row.classList.add("collapsing");
-      }, 560);
+      window.setTimeout(
+        function() {
+          row.classList.add(
+            "collapsing"
+          );
+        },
+        560
+      );
 
-      window.setTimeout(function() {
-        todos = todos.filter(function(todo) {
-          return todo.id !== id;
-        });
+      window.setTimeout(
+        function() {
+          todos =
+            todos.filter(
+              function(todo) {
+                return (
+                  todo.id !== id
+                );
+              }
+            );
 
-        saveTodos();
-        renderTodos();
-      }, 900);
+          saveTodos();
+          renderTodos();
+        },
+        900
+      );
     }
 
-    addButton.addEventListener("click", openAddSheet);
-    cancelButton.addEventListener("click", closeAddSheet);
-    saveButton.addEventListener("click", addTodo);
-    todoInput.addEventListener("input", updateInputState);
+    addButton.addEventListener(
+      "click",
+      openAddSheet
+    );
 
-    todoInput.addEventListener("keydown", function(event) {
-      if (event.key === "Enter") {
-        event.preventDefault();
+    cancelButton.addEventListener(
+      "click",
+      closeAddSheet
+    );
 
-        if (!saveButton.disabled) {
-          addTodo();
+    saveButton.addEventListener(
+      "click",
+      addTodo
+    );
+
+    todoInput.addEventListener(
+      "input",
+      updateInputState
+    );
+
+    todoInput.addEventListener(
+      "keydown",
+      function(event) {
+        if (
+          event.key === "Enter"
+        ) {
+          event.preventDefault();
+
+          if (
+            !saveButton.disabled
+          ) {
+            addTodo();
+          }
         }
       }
-    });
+    );
 
-    overlay.addEventListener("click", function(event) {
-      if (event.target === overlay) {
-        closeAddSheet();
+    overlay.addEventListener(
+      "click",
+      function(event) {
+        if (
+          event.target === overlay
+        ) {
+          closeAddSheet();
+        }
       }
-    });
+    );
 
     renderTodos();
 
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", function() {
-        navigator.serviceWorker
-          .register("./sw.js")
-          .catch(function() {});
-      });
+    if (
+      "serviceWorker" in navigator
+    ) {
+      window.addEventListener(
+        "load",
+        function() {
+          navigator
+            .serviceWorker
+            .register("./sw.js")
+            .catch(
+              function() {}
+            );
+        }
+      );
     }
   </script>
 </body>
